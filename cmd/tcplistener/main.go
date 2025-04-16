@@ -18,7 +18,7 @@ func main() {
 	for {
 		connection, err := tcpListener.Accept()
 		if err != nil {
-            log.Fatalf("Error accepting TCP connection: %s\n", err.Error())
+			log.Fatalf("Error accepting TCP connection: %s\n", err.Error())
 		}
 		fmt.Println("Connection accepted from:", connection.RemoteAddr())
 		linesChannel := getLinesChannel(connection)
