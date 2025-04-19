@@ -58,18 +58,20 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 			copy(newBuffer, buffer)
 			buffer = newBuffer
 		}
-		// read from the reader to the buffer, from readToIndex index position
+		// read from the reader to the buffer, from readToIndex index position to add in more data to the buffer
 		numBytesRead, err := reader.Read(buffer[readToIndex:])
 		if errors.Is(err, io.EOF) {
 			request.State = done
 			break
 		}
+		// increase the readToIndex by the number of bytes read
+		// later, with new iteration, we can check whether if the buffer has to be resized
 		readToIndex += numBytesRead
 		numBytesParse, err := request.parse(buffer[:readToIndex])
 		if err != nil {
 			return nil, err
 		}
-		// remove the data we have read from the buffer
+		// remove the data we have parsed
 		// this keep the buffer small and memory efficient
 		copy(buffer, buffer[numBytesParse:])
 		readToIndex -= numBytesParse
