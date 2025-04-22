@@ -42,11 +42,21 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 
 	hostKey = strings.TrimSpace(hostKey)
 	hostKey = strings.ToLower(hostKey)
-	hostAddress := string(parts[1])
-	hostAddress = strings.TrimSpace(hostAddress)
-	// set the host key to the host address
-	h[hostKey] = hostAddress
+
+	// process host value
+	hostValues := string(parts[1])
+	hostValues = strings.TrimSpace(hostValues)
+    h.Set(hostKey, hostValues)
+
 	return crlfIdx + 2, false, nil
+}
+
+func (h Headers) Set(key, value string) {
+	v, ok := h[key]
+	if ok {
+		value = v + ", " + value
+	}
+    h[key] = value
 }
 
 func isAlphaNumeric(s string) bool {
