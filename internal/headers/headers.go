@@ -24,6 +24,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	if crlfIdx == -1 {
 		return 0, false, nil
 	}
+    // if we find a CRLF at the beginning of the data, we are done
 	if crlfIdx == 0 {
 		return 2, true, nil
 	}
