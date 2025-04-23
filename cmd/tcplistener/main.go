@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/quockhanhcao/http-from-tcp/internal/request"
 	"log"
 	"net"
+	"github.com/quockhanhcao/http-from-tcp/internal/request"
 )
 
 func main() {

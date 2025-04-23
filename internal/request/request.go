@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/quockhanhcao/http-from-tcp/internal/headers"
@@ -19,6 +20,7 @@ type Request struct {
 	State requestState
 	// Headers
 	Headers headers.Headers
+	Body    []byte
 }
 
 type requestState int
@@ -26,6 +28,7 @@ type requestState int
 const (
 	requestStateIntialized requestState = iota
 	requestStateParsingHeaders
+	requestStateParsingBody
 	requestStateDone
 )
 
@@ -47,13 +50,14 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	// instead of reading all the data into memory
 	// read it into chunks
 	// and parse it as we go
-	buffer := make([]byte, bufferSize, bufferSize)
+	buffer := make([]byte, bufferSize)
 	// keep track of how much data we have read
 	readToIndex := 0
 	// new request
 	request := &Request{
 		State:   requestStateIntialized,
 		Headers: headers.NewHeaders(),
+		Body:    make([]byte, 0),
 	}
 
 	for request.State != requestStateDone {
@@ -68,7 +72,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		numBytesRead, err := reader.Read(buffer[readToIndex:])
 		if errors.Is(err, io.EOF) {
 			if request.State != requestStateDone {
-                return nil, fmt.Errorf("request not complete")
+				return nil, fmt.Errorf("request not complete")
 			}
 		}
 		// increase the readToIndex by the number of bytes read
@@ -125,9 +129,29 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 			return 0, err
 		}
 		if done {
-			r.State = requestStateDone
+			r.State = requestStateParsingBody
 		}
 		return totalBytesParsed, nil
+	case requestStateParsingBody:
+		contentLength, ok := r.Headers.Get("content-length")
+		if !ok {
+            // if no content-length header, we are done parsing
+            // even if we have the body, we will not parse it
+			r.State = requestStateDone
+			return len(data), nil
+		}
+		contentLengthVar, err := strconv.Atoi(contentLength)
+		if err != nil {
+            return 0, fmt.Errorf("invalid content-length %s", contentLength)
+		}
+        r.Body = append(r.Body, data...)
+		if len(r.Body) > contentLengthVar {
+			return 0, fmt.Errorf("body is longer than content-length %d", contentLengthVar)
+		}
+		if len(r.Body) == contentLengthVar {
+			r.State = requestStateDone
+		}
+		return len(data), nil
 	case requestStateDone:
 		return 0, fmt.Errorf("trying to read data in a done state")
 	default:

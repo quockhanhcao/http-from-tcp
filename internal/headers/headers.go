@@ -24,7 +24,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	if crlfIdx == -1 {
 		return 0, false, nil
 	}
-    // if we find a CRLF at the beginning of the data, we are done
+	// if we find a CRLF at the beginning of the data, we are done
 	if crlfIdx == 0 {
 		return 2, true, nil
 	}
@@ -47,7 +47,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	// process host value
 	hostValues := string(parts[1])
 	hostValues = strings.TrimSpace(hostValues)
-    h.Set(hostKey, hostValues)
+	h.Set(hostKey, hostValues)
 
 	return crlfIdx + 2, false, nil
 }
@@ -57,7 +57,12 @@ func (h Headers) Set(key, value string) {
 	if ok {
 		value = v + ", " + value
 	}
-    h[key] = value
+	h[key] = value
+}
+
+func (h Headers) Get(key string) (string, bool) {
+	v, ok := h[key]
+	return v, ok
 }
 
 func isAlphaNumeric(s string) bool {
