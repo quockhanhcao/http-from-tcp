@@ -28,6 +28,8 @@ func main() {
 		for key, value := range request.Headers {
 			fmt.Printf("- %s: %s\n", key, value)
 		}
+		fmt.Println("Body:")
+		fmt.Println(string(request.Body))
 		fmt.Println("Connection closed from:", connection.RemoteAddr())
 	}
 }
