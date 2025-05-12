@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"sync/atomic"
+
+	"github.com/quockhanhcao/http-from-tcp/internal/response"
 )
 
 type Server struct {
@@ -29,11 +31,8 @@ func (s *Server) listen() {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			if s.closed.Load() {
-				return
-			}
 			fmt.Println("error accepting connection: %w", err)
-            continue
+			continue
 		}
 		go s.handle(conn)
 	}
@@ -43,12 +42,15 @@ func (s *Server) listen() {
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	// handle the connection
-
-	response := "HTTP/1.1 200 OK\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"\r\n" +
-		"Hello World!"
-	conn.Write([]byte(response))
+	headers := response.GetDefaultHeaders(0)
+	err := response.WriteStatusLine(conn, response.StatusOK)
+    if err != nil {
+        fmt.Println("error writing status line: %w", err)
+    }
+	err = response.WriteHeaders(conn, headers)
+	if err != nil {
+		fmt.Println("error writing headers: %w", err)
+	}
 }
 
 // Create a net.Listener and returns new Server instance

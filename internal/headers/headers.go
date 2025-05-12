@@ -3,15 +3,12 @@ package headers
 import (
 	"bytes"
 	"fmt"
-	"regexp"
 	"strings"
 )
 
 type Headers map[string]string
 
 const crlf = "\r\n"
-
-var alphanumeric = regexp.MustCompile("^[A-Za-z0-9!#$%&'*+\\-.\\^_`|~]+$")
 
 func NewHeaders() Headers {
 	return make(Headers)
@@ -64,10 +61,6 @@ func (h Headers) Get(key string) (string, bool) {
     key = strings.ToLower(key)
 	v, ok := h[key]
 	return v, ok
-}
-
-func isAlphaNumeric(s string) bool {
-	return alphanumeric.MatchString(s)
 }
 
 func validString(s string) bool {
