@@ -3,6 +3,7 @@ package headers
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -49,7 +50,16 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	return crlfIdx + 2, false, nil
 }
 
+func GetDefaultHeaders(contentLen int) Headers {
+	headers := NewHeaders()
+	headers.Set("Content-Length", strconv.Itoa(contentLen))
+	headers.Set("Connection", "close")
+	headers.Set("Content-Type", "text/plain")
+	return headers
+}
+
 func (h Headers) Set(key, value string) {
+	key = strings.ToLower(key)
 	v, ok := h[key]
 	if ok {
 		value = v + ", " + value
@@ -58,7 +68,7 @@ func (h Headers) Set(key, value string) {
 }
 
 func (h Headers) Get(key string) (string, bool) {
-    key = strings.ToLower(key)
+	key = strings.ToLower(key)
 	v, ok := h[key]
 	return v, ok
 }
@@ -70,4 +80,9 @@ func validString(s string) bool {
 		}
 	}
 	return true
+}
+
+func (h Headers) OverrideHeadersByKey(key, value string) {
+	key = strings.ToLower(key)
+	h[key] = value
 }

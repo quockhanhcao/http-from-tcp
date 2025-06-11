@@ -1,14 +1,12 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
-	"io"
-	"net"
-	"sync/atomic"
-
+	"github.com/quockhanhcao/http-from-tcp/internal/headers"
 	"github.com/quockhanhcao/http-from-tcp/internal/request"
 	"github.com/quockhanhcao/http-from-tcp/internal/response"
+	"net"
+	"sync/atomic"
 )
 
 type HandlerError struct {
@@ -16,15 +14,7 @@ type HandlerError struct {
 	Message    string
 }
 
-type Handler func(w io.Writer, req *request.Request) *HandlerError
-
-func (he HandlerError) WriteErrorHandler(w io.Writer) {
-	response.WriteStatusLine(w, he.StatusCode)
-	messageBytes := []byte(he.Message)
-	headers := response.GetDefaultHeaders(len(messageBytes))
-	response.WriteHeaders(w, headers)
-	w.Write(messageBytes)
-}
+type Handler func(w *response.Writer, req *request.Request)
 
 type Server struct {
 	listener net.Listener
@@ -43,7 +33,7 @@ func (s *Server) Close() error {
 
 // uses a loop to .Accept new connections as they come in, handles each one
 // in a separate goroutine
-func (s *Server) listen(handler Handler) {
+func (s *Server) listen() {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
@@ -53,35 +43,23 @@ func (s *Server) listen(handler Handler) {
 			fmt.Println("error accepting connection: %w", err)
 			continue
 		}
-		go s.handle(conn, handler)
+		go s.handle(conn)
 	}
 }
 
 // handle a single connection by writing the response and closing the connection
-func (s *Server) handle(conn net.Conn, handler Handler) {
+func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
-	// handle the request
+	w := response.NewWriter(conn)
 	request, err := request.RequestFromReader(conn)
 	if err != nil {
-		handlerError := &HandlerError{
-			StatusCode: response.StatusBadRequest,
-			Message:    err.Error(),
-		}
-		handlerError.WriteErrorHandler(conn)
+		w.WriteStatusLine(response.StatusBadRequest)
+		body := []byte(fmt.Sprintf("Error parsing request: %v", err))
+		w.WriteHeaders(headers.GetDefaultHeaders(len(body)))
+		w.WriteBody(body)
 		return
 	}
-	buf := &bytes.Buffer{}
-	handlerError := handler(buf, request)
-	if handlerError != nil {
-		handlerError.WriteErrorHandler(conn)
-		return
-	}
-	b := buf.Bytes()
-	// write the response if succeeded
-	response.WriteStatusLine(conn, response.StatusOK)
-	headers := response.GetDefaultHeaders(len(b))
-	response.WriteHeaders(conn, headers)
-	conn.Write(b)
+	s.handler(w, request)
 }
 
 // Create a net.Listener and returns new Server instance
@@ -96,6 +74,6 @@ func Serve(port int, handler Handler) (*Server, error) {
 	}
 	server.closed.Store(false)
 
-	go server.listen(handler)
+	go server.listen()
 	return server, nil
 }
