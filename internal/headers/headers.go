@@ -86,3 +86,8 @@ func (h Headers) OverrideHeadersByKey(key, value string) {
 	key = strings.ToLower(key)
 	h[key] = value
 }
+
+func (h Headers) Remove(key string) {
+	key = strings.ToLower(key)
+	delete(h, key)
+}
