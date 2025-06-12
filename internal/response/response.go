@@ -138,25 +138,15 @@ func (w *Writer) WriteChunkedBodyDone() (int, error) {
 
 func (w *Writer) WriteTrailers(h headers.Headers) error {
 	if w.WriterState != WriterTrailers {
-		return fmt.Errorf("expected writer state to be writer body to write trailers, got %v", w.WriterState)
+		return fmt.Errorf("expected writer state to be writerTrailers, got %v", w.WriterState)
 	}
-	checksum, ok := h.Get("X-Content-SHA256")
-	if !ok {
-		return fmt.Errorf("X-Content-SHA256 header is required to write trailers")
+	for key, value := range h {
+		_, err := w.writer.Write([]byte(fmt.Sprintf("%s: %s\r\n", key, value)))
+		if err != nil {
+			return fmt.Errorf("error writing trailer %s: %w", key, err)
+		}
 	}
-	_, err := w.writer.Write([]byte(fmt.Sprintf("X-Content-SHA256: %s\r\n", checksum)))
-	if err != nil {
-		return fmt.Errorf("error writing X-Content-SHA256 value to trailers: %w", err)
-	}
-	rawBodyLength, ok := h.Get("X-Content-Length")
-	if !ok {
-		return fmt.Errorf("X-Content-Length header is required to write trailers")
-	}
-	_, err = w.writer.Write([]byte(fmt.Sprintf("X-Content-Length: %s\r\n", rawBodyLength)))
-	if err != nil {
-		return fmt.Errorf("error writing X-Content-Length value to trailers: %w", err)
-	}
-	_, err = w.writer.Write([]byte("\r\n"))
+	_, err := w.writer.Write([]byte("\r\n"))
 	if err != nil {
 		return fmt.Errorf("error writing end of trailers: %w", err)
 	}

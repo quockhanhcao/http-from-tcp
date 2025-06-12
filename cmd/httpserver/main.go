@@ -40,13 +40,30 @@ func handler(w *response.Writer, req *request.Request) {
 	if req.RequestLine.RequestTarget == "/yourproblem" {
 		badRequestHandler(w)
 		return
-	} else if req.RequestLine.RequestTarget == "/myproblem" {
+	}
+	if req.RequestLine.RequestTarget == "/myproblem" {
 		internalServerErrorHandler(w)
 		return
-	} else {
-		successRequestHandler(w)
+	}
+	if req.RequestLine.RequestTarget == "/video" {
+		videoFileHandler(w, req)
 		return
 	}
+	successRequestHandler(w)
+}
+
+func videoFileHandler(w *response.Writer, _ *request.Request) {
+	videoBuf, err := os.ReadFile("./assets/vim.mp4")
+	if err != nil {
+		log.Printf("Error reading video file: %v", err)
+		internalServerErrorHandler(w)
+		return
+	}
+	w.WriteStatusLine(response.StatusOK)
+	h := headers.GetDefaultHeaders(len(videoBuf))
+	h.OverrideHeadersByKey("Content-Type", "video/mp4")
+	w.WriteHeaders(h)
+	w.WriteBody(videoBuf)
 }
 
 func proxyHandler(w *response.Writer, req *request.Request) {
@@ -54,7 +71,7 @@ func proxyHandler(w *response.Writer, req *request.Request) {
 	fmt.Println("Proxying request to httpbin with params:", requestParams)
 	resp, err := http.Get("https://httpbin.org/" + requestParams)
 	if err != nil {
-		log.Printf("Error making request to httpbin: %v", err)
+		fmt.Printf("Error making request to httpbin: %v", err)
 		internalServerErrorHandler(w)
 		return
 	}
@@ -62,11 +79,11 @@ func proxyHandler(w *response.Writer, req *request.Request) {
 
 	// for the response to client
 	w.WriteStatusLine(response.StatusOK)
-	headers := headers.GetDefaultHeaders(0)
-	headers.OverrideHeadersByKey("Transfer-Encoding", "chunked")
-	headers.OverrideHeadersByKey("Trailer", "X-Content-SHA256, X-Content-Length")
-	headers.Remove("Content-Length")
-	w.WriteHeaders(headers)
+	h := headers.GetDefaultHeaders(0)
+	h.OverrideHeadersByKey("Transfer-Encoding", "chunked")
+	h.OverrideHeadersByKey("Trailer", "X-Content-SHA256, X-Content-Length")
+	h.Remove("Content-Length")
+	w.WriteHeaders(h)
 
 	fullBody := make([]byte, 0)
 	buffer := make([]byte, 1024)
@@ -96,10 +113,11 @@ func proxyHandler(w *response.Writer, req *request.Request) {
 		fmt.Printf("Error writing chunked body done: %v", err)
 	}
 	// calculate the SHA256 hash of the full body
+	trailers := headers.NewHeaders()
 	checksum := sha256.Sum256(fullBody)
-	headers.OverrideHeadersByKey("X-Content-SHA256", fmt.Sprintf("%x", checksum))
-	headers.OverrideHeadersByKey("X-Content-Length", fmt.Sprintf("%d", len(fullBody)))
-	err = w.WriteTrailers(headers)
+	trailers.OverrideHeadersByKey("X-Content-SHA256", fmt.Sprintf("%x", checksum))
+	trailers.OverrideHeadersByKey("X-Content-Length", fmt.Sprintf("%d", len(fullBody)))
+	err = w.WriteTrailers(trailers)
 	if err != nil {
 		fmt.Printf("Error writing trailers to the end of body: %v", err)
 	}
