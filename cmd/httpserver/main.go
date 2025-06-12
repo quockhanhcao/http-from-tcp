@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"log"
 	"net/http"
@@ -62,20 +63,24 @@ func proxyHandler(w *response.Writer, req *request.Request) {
 	// for the response to client
 	w.WriteStatusLine(response.StatusOK)
 	headers := headers.GetDefaultHeaders(0)
-	headers.Remove("Content-Length")
 	headers.OverrideHeadersByKey("Transfer-Encoding", "chunked")
+	headers.OverrideHeadersByKey("Trailer", "X-Content-SHA256, X-Content-Length")
+	headers.Remove("Content-Length")
 	w.WriteHeaders(headers)
 
+	fullBody := make([]byte, 0)
 	buffer := make([]byte, 1024)
 	for {
 		n, err := resp.Body.Read(buffer)
 		fmt.Println("Read ", n, "bytes")
 		if n > 0 {
-			_, err = w.WriteChunkedBody(buffer[:n])
+			chunk := buffer[:n]
+			_, err = w.WriteChunkedBody(chunk)
 			if err != nil {
 				fmt.Printf("Error writing chunked body: %v", err)
 				break
 			}
+			fullBody = append(fullBody, chunk...)
 		}
 		if n == 0 {
 			fmt.Println("Reached end of response body from httpbin")
@@ -89,6 +94,14 @@ func proxyHandler(w *response.Writer, req *request.Request) {
 	_, err = w.WriteChunkedBodyDone()
 	if err != nil {
 		fmt.Printf("Error writing chunked body done: %v", err)
+	}
+	// calculate the SHA256 hash of the full body
+	checksum := sha256.Sum256(fullBody)
+	headers.OverrideHeadersByKey("X-Content-SHA256", fmt.Sprintf("%x", checksum))
+	headers.OverrideHeadersByKey("X-Content-Length", fmt.Sprintf("%d", len(fullBody)))
+	err = w.WriteTrailers(headers)
+	if err != nil {
+		fmt.Printf("Error writing trailers to the end of body: %v", err)
 	}
 }
 

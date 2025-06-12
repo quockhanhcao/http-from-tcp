@@ -21,6 +21,7 @@ const (
 	WriterStatusLine WriterState = iota
 	WriterHeaders
 	WriterBody
+	WriterTrailers
 )
 
 type Writer struct {
@@ -98,7 +99,7 @@ func (w *Writer) WriteBody(body []byte) error {
 
 func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
 	if w.WriterState != WriterBody {
-		return 0, fmt.Errorf("cannot write body in state %d", w.WriterState)
+		return 0, fmt.Errorf("cannot write chunk body in state %d", w.WriterState)
 	}
 	chunkSize := len(p)
 
@@ -125,11 +126,39 @@ func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
 
 func (w *Writer) WriteChunkedBodyDone() (int, error) {
 	if w.WriterState != WriterBody {
-		return 0, fmt.Errorf("cannot write body in state %d", w.WriterState)
+		return 0, fmt.Errorf("cannot write end of chunk body in state %d", w.WriterState)
 	}
-	n, err := w.writer.Write([]byte("0\r\n\r\n"))
+	n, err := w.writer.Write([]byte("0\r\n"))
 	if err != nil {
 		return n, err
 	}
+	w.WriterState = WriterTrailers
 	return n, nil
+}
+
+func (w *Writer) WriteTrailers(h headers.Headers) error {
+	if w.WriterState != WriterTrailers {
+		return fmt.Errorf("expected writer state to be writer body to write trailers, got %v", w.WriterState)
+	}
+	checksum, ok := h.Get("X-Content-SHA256")
+	if !ok {
+		return fmt.Errorf("X-Content-SHA256 header is required to write trailers")
+	}
+	_, err := w.writer.Write([]byte(fmt.Sprintf("X-Content-SHA256: %s\r\n", checksum)))
+	if err != nil {
+		return fmt.Errorf("error writing X-Content-SHA256 value to trailers: %w", err)
+	}
+	rawBodyLength, ok := h.Get("X-Content-Length")
+	if !ok {
+		return fmt.Errorf("X-Content-Length header is required to write trailers")
+	}
+	_, err = w.writer.Write([]byte(fmt.Sprintf("X-Content-Length: %s\r\n", rawBodyLength)))
+	if err != nil {
+		return fmt.Errorf("error writing X-Content-Length value to trailers: %w", err)
+	}
+	_, err = w.writer.Write([]byte("\r\n"))
+	if err != nil {
+		return fmt.Errorf("error writing end of trailers: %w", err)
+	}
+	return nil
 }
